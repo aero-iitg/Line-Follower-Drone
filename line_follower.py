@@ -7,7 +7,7 @@ from geometry_msgs.msg import Twist, PoseStamped
 from mavros_msgs.msg import *
 from mavros_msgs.srv import *
 
-
+# function to arm the drone
 def setArm():
     rospy.wait_for_service('mavros/cmd/arming')
     try:
@@ -16,6 +16,7 @@ def setArm():
     except rospy.ServiceException:
         print("Service arming call failed")
 
+# function to set flight mode to OffboardMode
 def setOffboardMode():
     rospy.wait_for_service('mavros/set_mode')
     try:
@@ -25,11 +26,17 @@ def setOffboardMode():
         print("service set_mode call failed. Offboard Mode could not be set.")
 
 
+# message to hold current arming state of drone
 state = State()
+
+# state callback function will fill the state message with current state
 def stateCb(msg):
     state.armed = msg.armed
 
+# message to hold current position of drone    
 local_pos = PoseStamped()
+
+# position callback function will fill the local_pos message with current position of drone
 def posCb(msg):
     local_pos.pose.position.x = msg.pose.position.x
     local_pos.pose.position.y = msg.pose.position.y
@@ -38,55 +45,73 @@ def posCb(msg):
 pos_hold = PositionTarget()
 # set the flag to use position setpoints and yaw angle
 pos_hold.type_mask = int('010111111000', 2)
-# LOCAL_NED
+# LOCAL_NED coordinate frame
 pos_hold.coordinate_frame = 1
 pos_hold.position.x = 0
 pos_hold.position.y = 0
 pos_hold.position.z = 5
 
+# message to hold the forward velocity that we want to give to the drone
+# publishing this message will give the drone a forward velocity
 fwd_vel = Twist()
 fwd_vel.linear.x = 0.75
 fwd_vel.linear.y = 0
 fwd_vel.linear.z = 0
 
+# message to hold the left translational velocity that we want to give to the drone
 left_vel = Twist()
 left_vel.linear.x = 0
 left_vel.linear.y = -0.75
 left_vel.linear.z = 0
 
+# message to hold the right translational velocity that we want to give to the drone
 right_vel = Twist()
 right_vel.linear.x = 0
 right_vel.linear.y = 0.75
 right_vel.linear.z = 0
 
+# message to hold the clockwise yaw velocity that we want to give to the drone
 cw_yaw = Twist()
 cw_yaw.angular.x = 0
 cw_yaw.angular.y = 0
 cw_yaw.angular.z = -0.75
 
+# message to hold the counter-clockwise yaw velocity that we want to give to the drone
 ccw_yaw = Twist()
 ccw_yaw.angular.x = 0
 ccw_yaw.angular.y = 0
 ccw_yaw.angular.z = 0.75
 
-
+# main node
 def main_func():
     counter = 0
+    # initializing a node to communicate with the ROS Master
     rospy.init_node('line_follower_node', anonymous=True)
+    
+    # initializing a velocity publisher, to publish velocity on the cmd_vel topic
     vel_pub = rospy.Publisher('/mavros/setpoint_velocity/cmd_vel_unstamped', Twist, queue_size=10)
+    
+    # initializing a position setpoint publisher, to publish position setpoint on the setpoint_raw/local topic
     sp_pub = rospy.Publisher('/mavros/setpoint_raw/local', PositionTarget, queue_size=10)
 
-    #starting video stream
+    # starting video stream
     cap = cv2.VideoCapture('line_latest1.mp4')
 
+    # setting rate of publishing messages
     rate = rospy.Rate(20) # 10hz
+    
+    # subscribing to the state topic to get the current state of drone
     rospy.Subscriber('mavros/state', State, stateCb)
+    
+    # subscribing to the local_position/pose topic to get the current location
     rospy.Subscriber('mavros/local_position/pose', PoseStamped, posCb)
 
+    # arming the drone
     while not state.armed:
         setArm()
         rate.sleep()
 
+    # setting offboard flight mode
     setOffboardMode()
 
     # Check if camera opened successfully
@@ -98,9 +123,10 @@ def main_func():
     checkpoint1 = False
     ang_offset = 1.5
     x_offset = 42
-    #Twist control_msg
+    
     # Read until video is completed
     while cap.isOpened() and (not rospy.is_shutdown()):
+        # setting threshholds for the defective frames that we got from defective_frame.py
         if ((counter >= 73) and (counter <= 82)):
             thresh_min = 60
             thresh_max = 70
@@ -116,7 +142,7 @@ def main_func():
         else:
             thresh_min = 20
             thresh_max = 25
-        # Capture frame-by-frame
+        
         pos = np.array((local_pos.pose.position.x, local_pos.pose.position.y, local_pos.pose.position.z))
 
         if np.linalg.norm(alt_sp - pos) < alt_offset:
@@ -124,21 +150,22 @@ def main_func():
         if checkpoint1 == False:
             sp_pub.publish(pos_hold)
         if checkpoint1 == True:
+            # Capture frame-by-frame
             ret, frame = cap.read()
-            #print(frame.shape)
             frame = cv2.resize(frame, (640, 360))
+            
             # Convert the img to grayscale
             gray = cv2.cvtColor(frame,cv2.COLOR_BGR2GRAY)
-            #kernel = 9
-            #gray_blur = cv2.GaussianBlur(gray,(kernel, kernel),0)
+            
             kernel2 = np.ones((17,17),np.uint8)
             erosion = cv2.dilate(gray,kernel2,iterations = 3)
+            
             # Apply edge detection method on the image
             edges = cv2.Canny(erosion,thresh_min,thresh_max,apertureSize = 3)
+            
             # This returns an array of r and theta values
             lines = cv2.HoughLines(edges,1,np.pi/180, 100)
-            #print(lines)
-            #print(lines.shape)
+            
             if lines is not None:
                 for r,theta in lines[0]:
                     print('check')
@@ -220,8 +247,6 @@ def main_func():
     # Closes all the frames
     cv2.destroyAllWindows()
 
-
-#main_func()
 if __name__ == '__main__':
     try:
         main_func()
