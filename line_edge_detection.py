@@ -1,30 +1,27 @@
 #!/usr/bin/env python
-# license removed for brevity
-#import rospy
+
 import cv2 
 import numpy as np 
-#from geometry_msgs.msg import Twist
 
+# function to show/display a frame
 def show(img):
     cv2.imshow('FRAME', img)
     cv2.waitKey(0)
     cv2.destroyAllWindows()
 
+# main function to detect line
 def main_func():
     counter = 0
     #read from camera
     cap = cv2.VideoCapture('line_latest1.mp4')
-    #pub = rospy.Publisher('vel_control_topic', Twist, queue_size=10)
-    #rospy.init_node('line_follower_node', anonymous=True)
-    #rate = rospy.Rate(20) # 10hz
+    
     # Check if camera opened successfully
     if (cap.isOpened()== False): 
         print("Error opening video stream or file")
     
-    #Twist control_msg
     # Read until video is completed
-    while cap.isOpened(): #and (not rospy.is_shutdown()):
-        # Capture frame-by-frame
+    while cap.isOpened():
+        # corrected values for defective frames
         if ((counter >= 73) and (counter <= 82)):
             thresh_min = 60
             thresh_max = 70
@@ -40,23 +37,22 @@ def main_func():
         else:
             thresh_min = 20
             thresh_max = 25
-
+        
+        # Capture frame-by-frame
         ret, frame = cap.read()
         frame = cv2.resize(frame, (640, 360))
         if ret == True:
             # Convert the img to grayscale 
             gray = cv2.cvtColor(frame,cv2.COLOR_BGR2GRAY)
-            #kernel = 9
-            #gray_blur = cv2.GaussianBlur(gray,(kernel, kernel),0)
+            
             kernel = np.ones((17,17),np.uint8)
             erosion = cv2.dilate(gray,kernel,iterations = 3)
             # Apply edge detection method on the image
             edges = cv2.Canny(erosion,thresh_min,thresh_max,apertureSize = 3)
-            print(thresh_min, thresh_max)
+            
             # This returns an array of r and theta values  
             lines = cv2.HoughLines(edges,1,np.pi/180, 100)
-            #print(lines)
-            #print(lines.shape)
+            
             if lines is not None:
                 for r,theta in lines[0]:
                     print('check')
@@ -99,54 +95,21 @@ def main_func():
         
             # Press Q on keyboard to  exit
             if cv2.waitKey(0) & 0xFF == ord('q'):
-                #cv2.imwrite("defective frame.jpg", frame)
-                                #print("frame no. : {}".format(counter))
+                cv2.imwrite("defective frame.jpg", frame)
+                print("frame no. : {}".format(counter))
                 break
             
-            '''control_msg.linear.x =
-            control_msg.linear.y =
-            control_msg.linear.z =
-            control_msg.angular.x =
-            control_msg.angular.y =
-            control_msg.angular.z =
-            
-            pub.publish(control_msg)
-            '''
             counter += 1
             print(counter)
         else: 
             break
-        #rate.sleep()
     
-
     # When everything done, release the video capture object
     cap.release()
      
     # Closes all the frames
     cv2.destroyAllWindows()
         
+
+# Calling The main function
 main_func()
-'''if __name__ == '__main__':
-    try:
-        main_func()
-    except #rospy.ROSInterruptException:
-        pass'''
-    
-    
-    
-
-# Reading the required image in 
-# which operations are to be done. 
-# Make sure that the image is in the same 
-# directory in which this python program is 
-#img = cv2.imread('7.jpg') 
-
-
-
-# The below for loop runs till r and theta values 
-# are in the range of the 2d array 
-         
-    
-# All the changes made in the input image are finally 
-# written on a new image houghlines.jpg 
-#cv2.imwrite('linesDetected.jpg', img) 
